@@ -80,7 +80,10 @@ function App() {
       <header className="max-w-6xl mx-auto mb-8">
         <div className="flex items-center gap-3 mb-2">
           <DollarSign className="w-10 h-10 text-green-500" />
-          <h1 className="text-4xl font-bold">peasant-budget</h1>
+          <div>
+            <h1 className="text-4xl font-bold">budget.peasant.free</h1>
+            <p className="text-sm text-gray-500 mt-1">Free as in freedom 🗽</p>
+          </div>
         </div>
         <p className="text-gray-400">Everything a modern peasant needs 💰</p>
       </header>
