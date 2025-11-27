@@ -22,14 +22,44 @@ function App() {
   
   // Current selected period
   const [selectedPeriod, setSelectedPeriod] = useState(() => {
-    return getCurrentPayPeriod(payPeriodType, new Date(), payPeriodConfig)
+    try {
+      // Convert lastPayday from ISO string to Date if needed
+      const config = {
+        ...payPeriodConfig,
+        lastPayday: payPeriodConfig.lastPayday 
+          ? new Date(payPeriodConfig.lastPayday)
+          : new Date()
+      }
+      return getCurrentPayPeriod(payPeriodType, new Date(), config)
+    } catch (error) {
+      console.error('Error initializing pay period:', error)
+      // Fallback to a simple bi-monthly period
+      return {
+        start: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+        end: new Date(new Date().getFullYear(), new Date().getMonth(), 15),
+        payday: new Date(),
+        nextPayday: new Date(),
+        label: 'Current Period'
+      }
+    }
   })
 
   // Update period when type changes
   useEffect(() => {
-    const newPeriod = getCurrentPayPeriod(payPeriodType, new Date(), payPeriodConfig)
-    setSelectedPeriod(newPeriod)
-  }, [payPeriodType])
+    try {
+      // Convert lastPayday from ISO string to Date if needed
+      const config = {
+        ...payPeriodConfig,
+        lastPayday: payPeriodConfig.lastPayday 
+          ? new Date(payPeriodConfig.lastPayday)
+          : new Date()
+      }
+      const newPeriod = getCurrentPayPeriod(payPeriodType, new Date(), config)
+      setSelectedPeriod(newPeriod)
+    } catch (error) {
+      console.error('Error updating pay period:', error)
+    }
+  }, [payPeriodType, payPeriodConfig])
 
   const handleAddTransaction = (transaction) => {
     setTransactions(prev => [transaction, ...prev])
