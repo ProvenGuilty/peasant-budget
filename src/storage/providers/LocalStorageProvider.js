@@ -1,7 +1,7 @@
 /**
  * LocalStorage Provider
  * 
- * Stores budget data in the browser's localStorage.
+ * Stores budget data in the browser's localStorage with optional encryption.
  * This is the baseline/fallback provider that works offline.
  * 
  * Features:
@@ -10,11 +10,19 @@
  * - No authentication required
  * - Data persists across browser sessions
  * - Cross-tab synchronization
+ * - AES-256-GCM encryption at rest (optional, user-controlled)
+ * 
+ * Security:
+ * - Data encrypted with user's passphrase
+ * - PBKDF2 key derivation (100,000 iterations)
+ * - Random IV per encryption operation
+ * - Authentication tag prevents tampering
  * 
  * Limitations:
  * - Data is browser/device specific
  * - ~5-10MB storage limit
  * - No cross-device sync
+ * - If passphrase is lost, data cannot be recovered
  */
 
 import { 
@@ -24,8 +32,46 @@ import {
   registerProvider 
 } from '../StorageProvider.js';
 
+import {
+  encrypt,
+  decrypt,
+  isCryptoAvailable,
+  isEncryptionEnabled,
+  setEncryptionEnabled,
+  clearEncryptionSettings,
+  validatePassphrase,
+  getEncryptionHealth
+} from '../encryption.js';
+
 const STORAGE_KEY = 'peasant-budget-data';
 const PROVIDER_ID = 'local';
+
+/**
+ * Logger for LocalStorage operations
+ * Follows SRE logging best practices
+ */
+const logger = {
+  info: (message, context = {}) => {
+    console.log(`[LocalStorage] ${message}`, {
+      timestamp: new Date().toISOString(),
+      ...context
+    });
+  },
+  warn: (message, context = {}) => {
+    console.warn(`[LocalStorage] ${message}`, {
+      timestamp: new Date().toISOString(),
+      ...context
+    });
+  },
+  error: (message, error, context = {}) => {
+    console.error(`[LocalStorage] ${message}`, {
+      timestamp: new Date().toISOString(),
+      error: error?.message || error,
+      stack: error?.stack,
+      ...context
+    });
+  }
+};
 
 class LocalStorageProvider extends StorageProvider {
   constructor() {
@@ -37,9 +83,153 @@ class LocalStorageProvider extends StorageProvider {
     };
     this._listeners = new Set();
     
+    // Encryption state
+    this._passphrase = null;
+    this._encryptionEnabled = false;
+    
     // Listen for storage events from other tabs
     if (typeof window !== 'undefined') {
       window.addEventListener('storage', this._handleStorageEvent.bind(this));
+      
+      // Check encryption status on init
+      this._encryptionEnabled = isEncryptionEnabled();
+      logger.info('Provider initialized', {
+        encryptionEnabled: this._encryptionEnabled,
+        cryptoAvailable: isCryptoAvailable()
+      });
+    }
+  }
+
+  /**
+   * Set the encryption passphrase
+   * Must be called before load/save if encryption is enabled
+   * @param {string} passphrase
+   */
+  setPassphrase(passphrase) {
+    this._passphrase = passphrase;
+    logger.info('Passphrase set', { 
+      hasPassphrase: !!passphrase,
+      passphraseLength: passphrase?.length || 0
+    });
+  }
+
+  /**
+   * Clear the passphrase from memory
+   */
+  clearPassphrase() {
+    this._passphrase = null;
+    logger.info('Passphrase cleared from memory');
+  }
+
+  /**
+   * Check if encryption is currently enabled
+   * @returns {boolean}
+   */
+  isEncrypted() {
+    return this._encryptionEnabled && isEncryptionEnabled();
+  }
+
+  /**
+   * Enable encryption for this storage
+   * @param {string} passphrase - User's passphrase
+   * @returns {Promise<boolean>}
+   */
+  async enableEncryption(passphrase) {
+    const validation = validatePassphrase(passphrase);
+    if (!validation.valid) {
+      logger.warn('Passphrase validation failed', { errors: validation.errors });
+      throw new Error(validation.errors.join(', '));
+    }
+
+    if (!isCryptoAvailable()) {
+      logger.error('Cannot enable encryption', new Error('Web Crypto API not available'));
+      throw new Error('Encryption not available in this browser');
+    }
+
+    try {
+      // Load existing data
+      const existingData = await this._loadRaw();
+      
+      // Set passphrase and enable encryption
+      this._passphrase = passphrase;
+      this._encryptionEnabled = true;
+      setEncryptionEnabled();
+
+      // Re-save data encrypted
+      if (existingData) {
+        await this.save(existingData);
+        logger.info('Existing data encrypted successfully');
+      }
+
+      logger.info('Encryption enabled', { 
+        strength: validation.strength 
+      });
+      return true;
+    } catch (error) {
+      logger.error('Failed to enable encryption', error);
+      this._encryptionEnabled = false;
+      this._passphrase = null;
+      throw error;
+    }
+  }
+
+  /**
+   * Disable encryption and decrypt data
+   * @param {string} passphrase - Current passphrase to decrypt
+   * @returns {Promise<boolean>}
+   */
+  async disableEncryption(passphrase) {
+    try {
+      // Set passphrase to decrypt
+      this._passphrase = passphrase;
+
+      // Load and decrypt existing data
+      const existingData = await this.load();
+
+      // Disable encryption
+      this._encryptionEnabled = false;
+      this._passphrase = null;
+      clearEncryptionSettings();
+
+      // Re-save data unencrypted
+      if (existingData) {
+        await this.save(existingData);
+        logger.info('Data decrypted and saved');
+      }
+
+      logger.info('Encryption disabled');
+      return true;
+    } catch (error) {
+      logger.error('Failed to disable encryption', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get encryption health status
+   * @returns {Object}
+   */
+  getEncryptionStatus() {
+    return {
+      enabled: this._encryptionEnabled,
+      hasPassphrase: !!this._passphrase,
+      ...getEncryptionHealth()
+    };
+  }
+
+  /**
+   * Load raw data without decryption (internal use)
+   * @private
+   */
+  async _loadRaw() {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return null;
+    
+    try {
+      return JSON.parse(stored);
+    } catch {
+      // Might be encrypted, return as-is
+      return stored;
     }
   }
 
@@ -84,13 +274,16 @@ class LocalStorageProvider extends StorageProvider {
   }
 
   getInfo() {
+    const encryptionStatus = this.isEncrypted() ? ' (Encrypted 🔒)' : '';
     return {
       id: PROVIDER_ID,
-      name: 'Local Storage',
+      name: `Local Storage${encryptionStatus}`,
       icon: 'hard-drive',
-      description: 'Store data locally in your browser. Works offline, but data stays on this device only.',
+      description: 'Store data locally in your browser with optional encryption. Works offline, but data stays on this device only.',
       requiresAuth: false,
-      supportsSync: false
+      supportsSync: false,
+      supportsEncryption: true,
+      encryptionEnabled: this._encryptionEnabled
     };
   }
 
@@ -126,35 +319,68 @@ class LocalStorageProvider extends StorageProvider {
   }
 
   async load() {
+    const startTime = performance.now();
+    
     try {
       this._updateSyncStatus('syncing');
       
       const stored = localStorage.getItem(STORAGE_KEY);
       
       if (!stored) {
-        console.log('[LocalStorage] No existing data found');
+        logger.info('No existing data found');
         this._updateSyncStatus('synced');
         return null;
       }
 
-      const rawData = JSON.parse(stored);
+      let rawData;
+
+      // Check if data is encrypted
+      if (this._encryptionEnabled && isEncryptionEnabled()) {
+        if (!this._passphrase) {
+          logger.warn('Encrypted data found but no passphrase set');
+          this._updateSyncStatus('error', 'Passphrase required to decrypt data');
+          throw new Error('Passphrase required to decrypt data');
+        }
+
+        try {
+          const decrypted = await decrypt(stored, this._passphrase);
+          rawData = JSON.parse(decrypted);
+          logger.info('Data decrypted successfully', {
+            encryptedSize: stored.length,
+            decryptedSize: decrypted.length
+          });
+        } catch (decryptError) {
+          logger.error('Decryption failed', decryptError);
+          this._updateSyncStatus('error', 'Failed to decrypt data. Check your passphrase.');
+          throw new Error('Failed to decrypt data. Check your passphrase.');
+        }
+      } else {
+        // Unencrypted data
+        rawData = JSON.parse(stored);
+      }
+
       const validatedData = validateAndMigrateBudgetData(rawData);
       
-      console.log('[LocalStorage] Loaded data:', {
+      const duration = performance.now() - startTime;
+      logger.info('Data loaded successfully', {
         version: validatedData.version,
-        transactionCount: validatedData.data?.transactions?.length || 0
+        transactionCount: validatedData.data?.transactions?.length || 0,
+        encrypted: this._encryptionEnabled,
+        durationMs: Math.round(duration)
       });
       
       this._updateSyncStatus('synced');
       return validatedData;
     } catch (error) {
-      console.error('[LocalStorage] Failed to load data:', error);
+      logger.error('Failed to load data', error);
       this._updateSyncStatus('error', error.message);
-      return null;
+      throw error;
     }
   }
 
   async save(data) {
+    const startTime = performance.now();
+    
     try {
       this._updateSyncStatus('syncing');
       
@@ -168,11 +394,31 @@ class LocalStorageProvider extends StorageProvider {
       budgetData.provider = PROVIDER_ID;
       
       const serialized = JSON.stringify(budgetData);
-      localStorage.setItem(STORAGE_KEY, serialized);
+      let dataToStore = serialized;
+
+      // Encrypt if enabled
+      if (this._encryptionEnabled && this._passphrase) {
+        try {
+          dataToStore = await encrypt(serialized, this._passphrase);
+          logger.info('Data encrypted for storage', {
+            plaintextSize: serialized.length,
+            encryptedSize: dataToStore.length
+          });
+        } catch (encryptError) {
+          logger.error('Encryption failed', encryptError);
+          this._updateSyncStatus('error', 'Failed to encrypt data');
+          throw new Error('Failed to encrypt data');
+        }
+      }
+
+      localStorage.setItem(STORAGE_KEY, dataToStore);
       
-      console.log('[LocalStorage] Saved data:', {
-        size: serialized.length,
-        transactionCount: budgetData.data?.transactions?.length || 0
+      const duration = performance.now() - startTime;
+      logger.info('Data saved successfully', {
+        size: dataToStore.length,
+        transactionCount: budgetData.data?.transactions?.length || 0,
+        encrypted: this._encryptionEnabled && !!this._passphrase,
+        durationMs: Math.round(duration)
       });
       
       this._updateSyncStatus('synced');
