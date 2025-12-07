@@ -129,9 +129,15 @@ export default function PayPeriodSelectorV2({
       {/* Period Selection */}
       <div className="space-y-2 mb-4">
         {periods.map((period, index) => {
+          // Compare dates by day only (ignore time component)
+          const periodStartDay = period.start.toDateString()
+          const periodEndDay = period.end.toDateString()
+          const selectedStartDay = currentPeriod?.start?.toDateString()
+          const selectedEndDay = currentPeriod?.end?.toDateString()
+          
           const isSelected = currentPeriod && 
-            period.start.getTime() === currentPeriod.start.getTime() &&
-            period.end.getTime() === currentPeriod.end.getTime()
+            periodStartDay === selectedStartDay &&
+            periodEndDay === selectedEndDay
           
           return (
             <button
