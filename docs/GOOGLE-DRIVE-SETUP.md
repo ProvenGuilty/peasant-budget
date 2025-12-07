@@ -40,49 +40,66 @@ Google Drive integration allows users to:
 4. Click **"Enable"**
 5. Wait for the API to be enabled
 
-### Step 3: Configure OAuth Consent Screen
+### Step 3: Configure Google Auth Platform
 
-1. Go to **APIs & Services → OAuth consent screen**
-2. Select **"External"** user type
-3. Click **"Create"**
+Google has updated their console to use "Google Auth platform" with a new wizard flow.
 
-#### App Information
-- **App name:** `peasant-budget`
-- **User support email:** Your email address
-- **App logo:** (Optional) Upload app logo
+#### Option A: Use the New Wizard (Recommended)
 
-#### App Domain (Optional for testing)
-- **Application home page:** `https://budget.peasant.free`
-- **Privacy policy:** `https://budget.peasant.free/privacy` (create later)
-- **Terms of service:** `https://budget.peasant.free/terms` (create later)
+1. In the left sidebar, go to **Google Auth platform** (or search for it)
+2. If you see "Google Auth platform not configured yet", click **"Get Started"**
 
-#### Developer Contact
-- **Email addresses:** Your email address
+**App Information:**
+1. Enter **App name:** `peasant-budget`
+2. Select **User support email:** Your email address
+3. Click **"Next"**
 
-Click **"Save and Continue"**
+**Audience:**
+1. Select **"External"** (for apps used by anyone with a Google account)
+2. Click **"Next"**
 
-#### Scopes
-1. Click **"Add or Remove Scopes"**
-2. In the filter, search for `drive.appdata`
-3. Check the box for:
+**Contact Information:**
+1. Enter your **Email address** for project notifications
+2. Click **"Next"**
+
+**Finish:**
+1. Review the Google API Services User Data Policy
+2. Check **"I agree to the Google API Services: User Data Policy"**
+3. Click **"Continue"**
+4. Click **"Create"**
+
+#### Option B: Use Direct Links
+
+If the wizard doesn't appear, configure each section directly:
+
+- **Branding:** https://console.cloud.google.com/auth/branding
+- **Audience:** https://console.cloud.google.com/auth/audience  
+- **Data Access:** https://console.cloud.google.com/auth/scopes
+
+### Step 4: Add Test Users
+
+1. Go to **Google Auth platform → Audience**
+   - Or direct link: https://console.cloud.google.com/auth/audience
+2. Under **Test users**, click **"Add users"**
+3. Enter your email address (and any other testers)
+4. Click **"Save"**
+
+### Step 5: Configure Scopes (Data Access)
+
+1. Go to **Google Auth platform → Data Access**
+   - Or direct link: https://console.cloud.google.com/auth/scopes
+2. Click **"Add or Remove Scopes"**
+3. Search for `drive.appdata`
+4. Check the box for:
    - `https://www.googleapis.com/auth/drive.appdata`
    - Description: "See, create, and delete its own configuration data in your Google Drive"
-4. Click **"Update"**
-5. Click **"Save and Continue"**
+5. Click **"Update"**
+6. Click **"Save"**
 
-#### Test Users (Required for External apps)
-1. Click **"+ Add Users"**
-2. Add email addresses of test users (including yourself)
-3. Click **"Add"**
-4. Click **"Save and Continue"**
-
-#### Summary
-- Review the summary
-- Click **"Back to Dashboard"**
-
-### Step 4: Create OAuth Credentials
+### Step 6: Create OAuth Credentials
 
 1. Go to **APIs & Services → Credentials**
+   - Or direct link: https://console.cloud.google.com/apis/credentials
 2. Click **"+ Create Credentials"**
 3. Select **"OAuth client ID"**
 
@@ -104,7 +121,7 @@ Leave empty (we use implicit flow)
 
 4. Click **"Create"**
 
-### Step 5: Copy Client ID
+### Step 7: Copy Client ID
 
 After creation, you'll see a dialog with:
 - **Client ID:** `123456789012-abcdefg.apps.googleusercontent.com`
@@ -112,7 +129,7 @@ After creation, you'll see a dialog with:
 
 **Copy the Client ID** - you'll need it for the next step.
 
-### Step 6: Add to Environment Variables
+### Step 8: Add to Environment Variables
 
 #### Local Development
 
