@@ -82,10 +82,7 @@ function parseVerticalFormat(lines) {
       continue
     }
     
-    // Skip $0 payments
-    if (amount === 0) {
-      continue
-    }
+    // Allow $0 entries for tracking subscriptions with no current balance
     
     // Build date using due day in current month
     const now = new Date()
@@ -124,9 +121,11 @@ function parseBillsFormat(parts, index) {
   }
   
   const amount = parseAmount(minimum)
-  if (isNaN(amount) || amount === 0) {
-    return { error: `Line ${index + 1}: Invalid minimum payment "${minimum}"` }
+  if (isNaN(amount)) {
+    return { error: `Line ${index + 1}: Invalid payment "${minimum}"` }
   }
+  
+  // Allow $0 entries - useful for tracking accounts/subscriptions with no current balance
   
   const date = dueDate ? parseDate(dueDate) : new Date().toISOString().split('T')[0]
   const category = matchCategory(institution)
@@ -196,14 +195,14 @@ function parseStandardFormat(parts, index) {
  * Handles tab-separated and comma-separated values
  * Supports multiple formats: standard, bills tracking, and vertical
  */
-function parseClipboardData(text) {
+function parseClipboardData(text, forcedFormat = 'auto') {
   const lines = text.trim().split('\n').filter(l => l.trim())
   const transactions = []
   const errors = []
 
-  // Detect format from first lines
-  const format = detectFormat(lines)
-  console.log('[BulkImport] Detected format:', format)
+  // Use forced format or auto-detect
+  const format = forcedFormat === 'auto' ? detectFormat(lines) : forcedFormat
+  console.log('[BulkImport] Using format:', format, forcedFormat === 'auto' ? '(auto-detected)' : '(manual)')
 
   // Vertical format is handled differently (multi-line per record)
   if (format === 'vertical') {
@@ -328,34 +327,46 @@ function matchCategory(text) {
   return 'Other'
 }
 
+const FORMAT_OPTIONS = [
+  { id: 'auto', label: 'Auto-detect' },
+  { id: 'standard', label: 'Standard (Date | Description | Amount | Category)' },
+  { id: 'vertical', label: 'Vertical (4 lines per record)' },
+  { id: 'bills', label: 'Bills (Institution | Due Date | Account | Payment | ...)' }
+]
+
 export default function BulkImport({ onImport, onClose }) {
   const [pastedText, setPastedText] = useState('')
   const [preview, setPreview] = useState(null)
   const [parseErrors, setParseErrors] = useState([])
+  const [selectedFormat, setSelectedFormat] = useState('auto')
+
+  const parseWithFormat = (text, format) => {
+    if (!text.trim()) {
+      setPreview(null)
+      setParseErrors([])
+      return
+    }
+    const { transactions, errors } = parseClipboardData(text, format)
+    setPreview(transactions)
+    setParseErrors(errors)
+  }
 
   const handlePaste = (e) => {
     const text = e.clipboardData?.getData('text') || ''
     setPastedText(text)
-    
-    if (text.trim()) {
-      const { transactions, errors } = parseClipboardData(text)
-      setPreview(transactions)
-      setParseErrors(errors)
-    }
+    parseWithFormat(text, selectedFormat)
   }
 
   const handleTextChange = (e) => {
     const text = e.target.value
     setPastedText(text)
-    
-    if (text.trim()) {
-      const { transactions, errors } = parseClipboardData(text)
-      setPreview(transactions)
-      setParseErrors(errors)
-    } else {
-      setPreview(null)
-      setParseErrors([])
-    }
+    parseWithFormat(text, selectedFormat)
+  }
+
+  const handleFormatChange = (e) => {
+    const format = e.target.value
+    setSelectedFormat(format)
+    parseWithFormat(pastedText, format)
   }
 
   const handleImport = () => {
@@ -381,15 +392,36 @@ export default function BulkImport({ onImport, onClose }) {
 
         {/* Content */}
         <div className="p-4 overflow-y-auto flex-1">
+          {/* Format Selector */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-400 mb-2">Data Format</label>
+            <select
+              value={selectedFormat}
+              onChange={handleFormatChange}
+              className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-green-500"
+            >
+              {FORMAT_OPTIONS.map(opt => (
+                <option key={opt.id} value={opt.id}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Instructions */}
           <div className="mb-4 p-3 bg-gray-700/50 rounded-lg text-sm text-gray-300">
             <p className="font-medium mb-2">Copy rows from Google Sheets and paste below:</p>
-            <p className="text-gray-400">
-              Expected columns: <span className="text-green-400">Date | Description | Amount | Category</span>
-            </p>
-            <p className="text-gray-500 text-xs mt-1">
-              Category is optional. Negative amounts or "Income" category will be marked as income.
-            </p>
+            {selectedFormat === 'bills' ? (
+              <p className="text-gray-400">
+                Expected: <span className="text-green-400">Institution | Due Date | Account | Payment | ...</span>
+              </p>
+            ) : selectedFormat === 'vertical' ? (
+              <p className="text-gray-400">
+                Expected: <span className="text-green-400">4 lines per record (Name, Day, Amount, Balance)</span>
+              </p>
+            ) : (
+              <p className="text-gray-400">
+                Expected: <span className="text-green-400">Date | Description | Amount | Category</span>
+              </p>
+            )}
           </div>
 
           {/* Paste Area */}
