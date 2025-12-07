@@ -139,6 +139,9 @@ export default function StorageSettings() {
   const [isSwitching, setIsSwitching] = useState(false);
   const [importError, setImportError] = useState(null);
   const [showEncryption, setShowEncryption] = useState(false);
+  const [rememberSession, setRememberSession] = useState(() => {
+    return localStorage.getItem('google_remember_session') === 'true'; // Default to false (60 sec)
+  });
   const fileInputRef = useRef(null);
 
   // Check if current provider supports encryption
@@ -290,14 +293,28 @@ export default function StorageSettings() {
 
               {/* Reconnect Button for Cloud Providers */}
               {needsReconnect && (
-                <button
-                  onClick={handleReconnect}
-                  disabled={isSwitching}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-4 h-4 ${isSwitching ? 'animate-spin' : ''}`} />
-                  {isSwitching ? 'Connecting...' : 'Reconnect to Google Drive'}
-                </button>
+                <div className="space-y-3">
+                  <button
+                    onClick={handleReconnect}
+                    disabled={isSwitching}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isSwitching ? 'animate-spin' : ''}`} />
+                    {isSwitching ? 'Connecting...' : 'Reconnect to Google Drive'}
+                  </button>
+                  <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={rememberSession}
+                      onChange={(e) => {
+                        setRememberSession(e.target.checked);
+                        localStorage.setItem('google_remember_session', e.target.checked ? 'true' : 'false');
+                      }}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-green-500 focus:ring-green-500"
+                    />
+                    Keep me signed in for 55 minutes
+                  </label>
+                </div>
               )}
 
               {/* Provider Selection */}

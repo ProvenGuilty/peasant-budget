@@ -313,17 +313,19 @@ class GoogleDriveProvider extends StorageProvider {
       const tokenTime = localStorage.getItem('google_token_time');
       
       if (storedToken && tokenTime) {
-        // Check if token is less than 55 minutes old (Google tokens expire after 60 min)
+        // Check if user opted into extended session (55 min), otherwise use short session (60 sec)
+        const rememberSession = localStorage.getItem('google_remember_session') === 'true';
+        const maxAge = rememberSession ? 55 * 60 * 1000 : 60 * 1000; // 55 min or 60 sec
+        
         const tokenAge = Date.now() - parseInt(tokenTime, 10);
-        const maxAge = 55 * 60 * 1000; // 55 minutes in ms
         
         if (tokenAge < maxAge) {
           this._accessToken = storedToken;
-          console.log('[GoogleDrive] Restored token from storage, age:', Math.round(tokenAge / 60000), 'min');
+          console.log('[GoogleDrive] Restored token from storage, age:', Math.round(tokenAge / 1000), 'sec, extended:', rememberSession);
           return true;
         } else {
           // Token expired, clear it
-          console.log('[GoogleDrive] Stored token expired');
+          console.log('[GoogleDrive] Stored token expired after', rememberSession ? '55 min' : '60 sec');
           localStorage.removeItem('google_access_token');
           localStorage.removeItem('google_token_time');
         }
