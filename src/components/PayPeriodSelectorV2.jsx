@@ -201,8 +201,17 @@ export default function PayPeriodSelectorV2({
 export function filterTransactionsByPeriod(transactions, period) {
   if (!period) return transactions
   
+  // Normalize dates to compare only year/month/day (ignore time)
+  const normalizeDate = (date) => {
+    const d = new Date(date)
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  }
+  
+  const periodStart = normalizeDate(period.start)
+  const periodEnd = normalizeDate(period.end)
+  
   return transactions.filter(transaction => {
-    const transactionDate = new Date(transaction.date)
-    return transactionDate >= period.start && transactionDate <= period.end
+    const transactionDate = normalizeDate(transaction.date)
+    return transactionDate >= periodStart && transactionDate <= periodEnd
   })
 }
