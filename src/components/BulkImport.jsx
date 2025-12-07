@@ -13,22 +13,11 @@
  */
 
 import { useState } from 'react'
-import { ClipboardPaste, X, Upload, AlertCircle, Check, FileSpreadsheet } from 'lucide-react'
+import { ClipboardPaste, X, Upload, AlertCircle, Check, FileSpreadsheet, Sparkles, Loader2, Brain } from 'lucide-react'
 import { formatLocalDate, createDateForDay } from '../utils/dateUtils'
-
-const CATEGORIES = [
-  'Groceries',
-  'Rent/Mortgage',
-  'Utilities',
-  'Transportation',
-  'Entertainment',
-  'Healthcare',
-  'Dining Out',
-  'Shopping',
-  'Subscriptions',
-  'Income',
-  'Other'
-]
+import { bulkCategorize } from '../utils/aiUtils'
+import { applyRememberedCategories, learnCategories } from '../utils/categoryMemory'
+import { CATEGORIES } from '../utils/categories'
 
 /**
  * Detect format based on header row or data structure
@@ -379,20 +368,55 @@ const FORMAT_OPTIONS = [
   { id: 'bills', label: 'Bills (Institution | Due Date | Account | Payment | ...)' }
 ]
 
-export default function BulkImport({ onImport, onClose }) {
+export default function BulkImport({ onImport, onClose, existingTransactions = [] }) {
   const [pastedText, setPastedText] = useState('')
   const [preview, setPreview] = useState(null)
   const [parseErrors, setParseErrors] = useState([])
   const [selectedFormat, setSelectedFormat] = useState('auto')
+  const [isCategorizingAI, setIsCategorizingAI] = useState(false)
+  const [showCategoryReview, setShowCategoryReview] = useState(false)
+  const [reviewIndex, setReviewIndex] = useState(0)
+  const [duplicateCount, setDuplicateCount] = useState(0)
+
+  // Create a hash for duplicate detection
+  const createTransactionHash = (t) => {
+    // Hash based on date + description + amount (normalized)
+    const desc = t.description?.toLowerCase().replace(/\s*\(paid\)\s*/g, '').trim()
+    return `${t.date}|${desc}|${Math.abs(t.amount).toFixed(2)}`
+  }
+
+  // Check if transaction already exists
+  const isDuplicate = (transaction) => {
+    const hash = createTransactionHash(transaction)
+    return existingTransactions.some(existing => 
+      createTransactionHash(existing) === hash
+    )
+  }
 
   const parseWithFormat = (text, format) => {
     if (!text.trim()) {
       setPreview(null)
       setParseErrors([])
+      setDuplicateCount(0)
       return
     }
     const { transactions, errors } = parseClipboardData(text, format)
-    setPreview(transactions)
+    
+    // Mark duplicates and filter them out
+    let dupeCount = 0
+    const nonDuplicates = transactions.filter(t => {
+      if (isDuplicate(t)) {
+        dupeCount++
+        return false
+      }
+      return true
+    })
+    
+    setDuplicateCount(dupeCount)
+    
+    // Apply remembered categories from previous imports
+    const withMemory = applyRememberedCategories(nonDuplicates)
+    setPreview(withMemory)
     setParseErrors(errors)
   }
 
@@ -429,8 +453,37 @@ export default function BulkImport({ onImport, onClose }) {
     reader.readAsText(file)
   }
 
+  const handleAICategorize = async () => {
+    if (!preview || preview.length === 0) return
+    
+    setIsCategorizingAI(true)
+    try {
+      const categorized = await bulkCategorize(preview)
+      // Update preview with AI suggestions
+      setPreview(categorized.map(t => ({
+        ...t,
+        category: t.suggestedCategory || t.category
+      })))
+      setShowCategoryReview(true)
+      setReviewIndex(0)
+    } catch (error) {
+      console.error('AI categorization failed:', error)
+    } finally {
+      setIsCategorizingAI(false)
+    }
+  }
+
+  const updateTransactionCategory = (index, category) => {
+    if (!preview) return
+    const updated = [...preview]
+    updated[index] = { ...updated[index], category }
+    setPreview(updated)
+  }
+
   const handleImport = () => {
     if (preview && preview.length > 0) {
+      // Learn categories for future imports
+      learnCategories(preview)
       onImport(preview)
       onClose()
     }
@@ -532,14 +585,48 @@ export default function BulkImport({ onImport, onClose }) {
             </div>
           )}
 
+          {/* All duplicates message */}
+          {preview && preview.length === 0 && duplicateCount > 0 && (
+            <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+              <div className="flex items-center gap-2 text-yellow-400 text-sm font-medium">
+                <AlertCircle className="w-4 h-4" />
+                All {duplicateCount} transaction{duplicateCount !== 1 ? 's' : ''} already imported
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                No new transactions to import. These entries match existing transactions.
+              </p>
+            </div>
+          )}
+
           {/* Preview */}
           {preview && preview.length > 0 && (
             <div className="mt-4">
-              <div className="flex items-center gap-2 text-green-400 text-sm font-medium mb-2">
-                <Check className="w-4 h-4" />
-                {preview.length} transaction{preview.length !== 1 ? 's' : ''} ready to import:
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2 text-green-400 text-sm font-medium">
+                    <Check className="w-4 h-4" />
+                    {preview.length} new transaction{preview.length !== 1 ? 's' : ''} ready to import
+                  </div>
+                  {duplicateCount > 0 && (
+                    <div className="text-xs text-gray-500">
+                      {duplicateCount} duplicate{duplicateCount !== 1 ? 's' : ''} skipped (already imported)
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={handleAICategorize}
+                  disabled={isCategorizingAI}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg transition-colors"
+                >
+                  {isCategorizingAI ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" />
+                  )}
+                  {isCategorizingAI ? 'Categorizing...' : 'AI Categorize'}
+                </button>
               </div>
-              <div className="max-h-48 overflow-y-auto border border-gray-700 rounded-lg">
+              <div className="max-h-64 overflow-y-auto border border-gray-700 rounded-lg">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-700 sticky top-0">
                     <tr>
@@ -551,13 +638,28 @@ export default function BulkImport({ onImport, onClose }) {
                   </thead>
                   <tbody>
                     {preview.map((t, i) => (
-                      <tr key={i} className="border-t border-gray-700">
+                      <tr key={i} className="border-t border-gray-700 hover:bg-gray-700/50">
                         <td className="p-2 text-gray-400">{t.date}</td>
                         <td className="p-2 text-white">{t.description}</td>
                         <td className={`p-2 text-right ${t.type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
                           {t.type === 'income' ? '+' : '-'}${t.amount.toFixed(2)}
                         </td>
-                        <td className="p-2 text-gray-400">{t.category}</td>
+                        <td className="p-2">
+                          <div className="flex items-center gap-1">
+                            {t.wasRemembered && (
+                              <Brain className="w-3 h-3 text-blue-400 flex-shrink-0" title="Remembered from previous import" />
+                            )}
+                            <select
+                              value={t.category}
+                              onChange={(e) => updateTransactionCategory(i, e.target.value)}
+                              className={`flex-1 px-2 py-1 bg-gray-800 border rounded text-white text-xs focus:outline-none focus:border-green-500 ${t.wasRemembered ? 'border-blue-500/50' : 'border-gray-600'}`}
+                            >
+                              {CATEGORIES.map(cat => (
+                                <option key={cat} value={cat}>{cat}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

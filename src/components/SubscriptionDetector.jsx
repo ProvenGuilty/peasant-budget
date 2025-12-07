@@ -22,6 +22,25 @@ export default function SubscriptionDetector({ transactions }) {
 
     setIsLoading(true)
     try {
+      // First, get all transactions categorized as "Subscriptions"
+      const categoryBasedSubs = transactions
+        .filter(t => t.category === 'Subscriptions')
+        .map(t => ({
+          name: t.description.replace(/\s*\(paid\)\s*/g, ''),
+          monthlyCost: Math.abs(t.amount),
+          frequency: 'monthly',
+          confidence: 'verified' // User explicitly categorized it
+        }))
+      
+      // If we have category-based subscriptions, use those
+      if (categoryBasedSubs.length > 0) {
+        setSubscriptions(categoryBasedSubs)
+        setLastAnalyzed(new Date())
+        setIsLoading(false)
+        return
+      }
+      
+      // Fallback to AI detection if no subscriptions categorized
       const detected = await detectSubscriptions(transactions)
       setSubscriptions(detected)
       setLastAnalyzed(new Date())
@@ -38,6 +57,7 @@ export default function SubscriptionDetector({ transactions }) {
 
   const getConfidenceBadge = (confidence) => {
     const colors = {
+      verified: 'bg-blue-500/20 text-blue-400 border-blue-500/50',
       high: 'bg-green-500/20 text-green-400 border-green-500/50',
       medium: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50',
       low: 'bg-gray-500/20 text-gray-400 border-gray-500/50'
@@ -148,7 +168,7 @@ export default function SubscriptionDetector({ transactions }) {
                   <div className="flex items-center gap-3 flex-1">
                     <Repeat className="w-5 h-5 text-purple-400" />
                     <div className="flex-1">
-                      <p className="font-semibold text-white">{sub.service}</p>
+                      <p className="font-semibold text-white">{sub.name || sub.service}</p>
                       <p className="text-xs text-gray-400 capitalize">{sub.frequency} billing</p>
                     </div>
                   </div>

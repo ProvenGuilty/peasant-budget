@@ -1,24 +1,12 @@
 import { useState, useEffect } from 'react'
 import { DollarSign, Calendar, FileText, Tag, Sparkles } from 'lucide-react'
 import { getSmartSuggestions } from '../utils/aiUtils'
-
-const CATEGORIES = [
-  'Groceries',
-  'Rent/Mortgage',
-  'Utilities',
-  'Transportation',
-  'Entertainment',
-  'Healthcare',
-  'Dining Out',
-  'Shopping',
-  'Subscriptions',
-  'Income',
-  'Other'
-]
+import { CATEGORIES } from '../utils/categories'
+import { formatLocalDate } from '../utils/dateUtils'
 
 export default function TransactionForm({ onSubmit }) {
   const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
+    date: formatLocalDate(new Date()),
     amount: '',
     description: '',
     type: 'expense',

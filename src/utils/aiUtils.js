@@ -2,19 +2,7 @@
  * AI-powered category suggestion using OpenAI
  */
 
-const CATEGORIES = [
-  'Groceries',
-  'Rent/Mortgage',
-  'Utilities',
-  'Transportation',
-  'Entertainment',
-  'Healthcare',
-  'Dining Out',
-  'Shopping',
-  'Subscriptions',
-  'Income',
-  'Other'
-]
+import { CATEGORIES } from './categories'
 
 /**
  * Suggest a category based on transaction description
@@ -79,6 +67,80 @@ export async function suggestCategory(description) {
   } catch (error) {
     console.error('Error suggesting category:', error)
     return 'Other'
+  }
+}
+
+/**
+ * Bulk categorize multiple transactions using AI
+ * @param {Array} transactions - Array of {description, ...} objects
+ * @returns {Promise<Array>} - Array of {description, suggestedCategory}
+ */
+export async function bulkCategorize(transactions) {
+  const apiKey = import.meta.env.VITE_OPENAI_API_KEY
+  
+  if (!apiKey || apiKey === 'your-api-key-here') {
+    console.warn('OpenAI API key not configured')
+    return transactions.map(t => ({ ...t, suggestedCategory: 'Other' }))
+  }
+
+  // Build a list of descriptions
+  const descriptions = transactions.map((t, i) => `${i + 1}. ${t.description}`).join('\n')
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a financial categorization assistant. Categorize each transaction into one of these categories: ${CATEGORIES.join(', ')}.
+
+Respond with a JSON array of objects with "index" (1-based) and "category" fields. Example:
+[{"index": 1, "category": "Utilities"}, {"index": 2, "category": "Entertainment"}]
+
+Only respond with valid JSON, no markdown or explanation.`
+          },
+          {
+            role: 'user',
+            content: `Categorize these transactions:\n${descriptions}`
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 1000
+      })
+    })
+
+    if (!response.ok) {
+      console.error('OpenAI API error:', await response.text())
+      return transactions.map(t => ({ ...t, suggestedCategory: 'Other' }))
+    }
+
+    const data = await response.json()
+    let content = data.choices[0]?.message?.content?.trim()
+    
+    // Strip markdown code blocks if present
+    if (content.startsWith('```')) {
+      content = content.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
+    }
+
+    const suggestions = JSON.parse(content)
+    
+    // Map suggestions back to transactions
+    return transactions.map((t, i) => {
+      const suggestion = suggestions.find(s => s.index === i + 1)
+      const category = suggestion?.category
+      const validCategory = CATEGORIES.includes(category) ? category : 'Other'
+      return { ...t, suggestedCategory: validCategory }
+    })
+
+  } catch (error) {
+    console.error('Error bulk categorizing:', error)
+    return transactions.map(t => ({ ...t, suggestedCategory: 'Other' }))
   }
 }
 

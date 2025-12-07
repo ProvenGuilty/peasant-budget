@@ -15,10 +15,16 @@ import {
   Calendar,
   CheckSquare,
   Square,
-  Trash
+  Trash,
+  GraduationCap,
+  Shield,
+  CreditCard,
+  Landmark
 } from 'lucide-react'
+import { CATEGORY_COLORS } from '../utils/categories'
+import { parseLocalDate } from '../utils/dateUtils'
 
-// Category icon mapping
+// Category icon mapping (icons need to be imported directly)
 const CATEGORY_ICONS = {
   'Groceries': ShoppingCart,
   'Rent/Mortgage': Home,
@@ -26,33 +32,31 @@ const CATEGORY_ICONS = {
   'Transportation': Car,
   'Entertainment': Film,
   'Healthcare': Heart,
+  'Education': GraduationCap,
   'Dining Out': UtensilsCrossed,
   'Shopping': ShoppingBag,
   'Subscriptions': Repeat,
+  'Insurance': Shield,
+  'Revolving Credit': CreditCard,
+  'Installment Loan': Landmark,
+  'Auto Loan': Car,
+  'Student Loan': GraduationCap,
   'Income': DollarSign,
   'Other': HelpCircle
-}
-
-// Category colors
-const CATEGORY_COLORS = {
-  'Groceries': 'text-green-400',
-  'Rent/Mortgage': 'text-blue-400',
-  'Utilities': 'text-yellow-400',
-  'Transportation': 'text-purple-400',
-  'Entertainment': 'text-pink-400',
-  'Healthcare': 'text-red-400',
-  'Dining Out': 'text-orange-400',
-  'Shopping': 'text-indigo-400',
-  'Subscriptions': 'text-cyan-400',
-  'Income': 'text-green-400',
-  'Other': 'text-gray-400'
 }
 
 export default function TransactionList({ transactions, onDelete, onDeleteMultiple }) {
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [selectMode, setSelectMode] = useState(false)
 
-  if (!transactions || transactions.length === 0) {
+  // Sort transactions by date (newest first)
+  const sortedTransactions = [...(transactions || [])].sort((a, b) => {
+    const dateA = parseLocalDate(a.date)
+    const dateB = parseLocalDate(b.date)
+    return dateB - dateA // Descending (newest first)
+  })
+
+  if (!sortedTransactions || sortedTransactions.length === 0) {
     return (
       <div className="bg-gray-800 rounded-lg p-8 shadow-xl text-center">
         <DollarSign className="w-16 h-16 mx-auto mb-4 text-gray-600" />
@@ -73,10 +77,10 @@ export default function TransactionList({ transactions, onDelete, onDeleteMultip
   }
 
   const selectAll = () => {
-    if (selectedIds.size === transactions.length) {
+    if (selectedIds.size === sortedTransactions.length) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(transactions.map(t => t.id)))
+      setSelectedIds(new Set(sortedTransactions.map(t => t.id)))
     }
   }
 
@@ -104,7 +108,7 @@ export default function TransactionList({ transactions, onDelete, onDeleteMultip
   }
 
   const formatDate = (dateString) => {
-    const date = new Date(dateString)
+    const date = parseLocalDate(dateString)
     return date.toLocaleDateString('en-US', { 
       month: 'short', 
       day: 'numeric',
@@ -126,7 +130,7 @@ export default function TransactionList({ transactions, onDelete, onDeleteMultip
           <div>
             <h2 className="text-2xl font-bold text-white">Recent Transactions</h2>
             <p className="text-sm text-gray-400 mt-1">
-              {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
+              {sortedTransactions.length} transaction{sortedTransactions.length !== 1 ? 's' : ''}
               {selectedIds.size > 0 && ` (${selectedIds.size} selected)`}
             </p>
           </div>
@@ -137,8 +141,8 @@ export default function TransactionList({ transactions, onDelete, onDeleteMultip
                   onClick={selectAll}
                   className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded transition-colors"
                 >
-                  {selectedIds.size === transactions.length ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-                  {selectedIds.size === transactions.length ? 'Deselect All' : 'Select All'}
+                  {selectedIds.size === sortedTransactions.length ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                  {selectedIds.size === sortedTransactions.length ? 'Deselect All' : 'Select All'}
                 </button>
                 <button
                   onClick={deleteSelected}
@@ -170,7 +174,7 @@ export default function TransactionList({ transactions, onDelete, onDeleteMultip
 
       {/* Transaction List */}
       <div className="divide-y divide-gray-700">
-        {transactions.map((transaction) => {
+        {sortedTransactions.map((transaction) => {
           const Icon = getCategoryIcon(transaction.category)
           const iconColor = getCategoryColor(transaction.category)
           const isIncome = transaction.type === 'income'
@@ -288,7 +292,7 @@ export default function TransactionList({ transactions, onDelete, onDeleteMultip
         <div className="flex justify-between items-center">
           <span className="text-gray-400">Total Balance</span>
           <span className="text-2xl font-bold text-white">
-            ${transactions
+            ${sortedTransactions
               .reduce((sum, t) => {
                 return sum + (t.type === 'income' ? t.amount : -t.amount)
               }, 0)

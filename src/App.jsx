@@ -216,7 +216,8 @@ function App() {
       {showBulkImport && (
         <BulkImport 
           onImport={handleBulkImport} 
-          onClose={() => setShowBulkImport(false)} 
+          onClose={() => setShowBulkImport(false)}
+          existingTransactions={transactions}
         />
       )}
 

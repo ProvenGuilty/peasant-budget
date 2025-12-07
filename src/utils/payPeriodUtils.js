@@ -272,7 +272,17 @@ export function filterTransactionsByPayPeriod(transactions, period) {
  */
 export function getDaysUntilPayday(period) {
   const today = new Date()
-  const payday = period.nextPayday || period.payday
+  today.setHours(0, 0, 0, 0) // Normalize to midnight
+  
+  // Use current period's payday if it's still in the future, otherwise use nextPayday
+  let payday = new Date(period.payday)
+  payday.setHours(0, 0, 0, 0)
+  
+  if (payday < today && period.nextPayday) {
+    payday = new Date(period.nextPayday)
+    payday.setHours(0, 0, 0, 0)
+  }
+  
   const diffTime = payday - today
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
   return Math.max(0, diffDays)

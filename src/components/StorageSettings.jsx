@@ -416,7 +416,22 @@ export default function StorageSettings() {
                 <button
                   onClick={() => {
                     if (confirm('⚠️ This will permanently delete ALL your data. Are you sure?')) {
+                      // Preserve category memory and set default config
+                      const categoryMemory = localStorage.getItem('peasant-budget-category-memory');
                       localStorage.clear();
+                      // Restore category memory if it existed
+                      if (categoryMemory) {
+                        localStorage.setItem('peasant-budget-category-memory', categoryMemory);
+                      }
+                      // Set default pay period to monthly
+                      localStorage.setItem('peasant-budget-data', JSON.stringify({
+                        version: '1.0',
+                        data: {
+                          transactions: [],
+                          settings: {},
+                          payPeriodConfig: { type: 'monthly' }
+                        }
+                      }));
                       window.location.reload();
                     }
                   }}
