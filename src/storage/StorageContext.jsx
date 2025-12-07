@@ -85,7 +85,9 @@ export function StorageContextProvider({ children }) {
           const userInfo = await providerInstance.getUserInfo();
           setUser(userInfo);
         } else {
+          // Don't auto-prompt - let user click to reconnect (avoids popup blockers)
           setUser(null);
+          console.log('[Storage] Cloud provider not authenticated, user must reconnect');
         }
       }
 
@@ -203,6 +205,7 @@ export function StorageContextProvider({ children }) {
 
   /**
    * Update transactions
+   * For cloud providers, save immediately to prevent data loss
    */
   const updateTransactions = useCallback((transactions) => {
     if (!data) return;
@@ -215,8 +218,10 @@ export function StorageContextProvider({ children }) {
       }
     };
     
-    saveData(newData);
-  }, [data, saveData]);
+    // Save immediately for cloud providers, debounce for local
+    const isCloudProvider = provider?.getInfo()?.requiresAuth;
+    saveData(newData, isCloudProvider);
+  }, [data, saveData, provider]);
 
   /**
    * Add a transaction
@@ -255,8 +260,9 @@ export function StorageContextProvider({ children }) {
       }
     };
     
-    saveData(newData);
-  }, [data, saveData]);
+    const isCloudProvider = provider?.getInfo()?.requiresAuth;
+    saveData(newData, isCloudProvider);
+  }, [data, saveData, provider]);
 
   /**
    * Update pay period config
@@ -275,8 +281,9 @@ export function StorageContextProvider({ children }) {
       }
     };
     
-    saveData(newData);
-  }, [data, saveData]);
+    const isCloudProvider = provider?.getInfo()?.requiresAuth;
+    saveData(newData, isCloudProvider);
+  }, [data, saveData, provider]);
 
   /**
    * Switch to a different storage provider
@@ -308,12 +315,27 @@ export function StorageContextProvider({ children }) {
       }
     }
 
-    // Save current data to new provider
-    if (data) {
-      const success = await newProvider.save(data);
-      if (!success) {
-        console.error(`[Storage] Failed to migrate data to '${newProviderId}'`);
-        return false;
+    // For cloud providers, load existing data from cloud first
+    // Only migrate local data if cloud is empty
+    if (newProvider.getInfo().requiresAuth) {
+      const cloudData = await newProvider.load();
+      if (cloudData && cloudData.data?.transactions?.length > 0) {
+        // Cloud has data, use it (don't overwrite with local)
+        console.log(`[Storage] Found existing data in cloud provider, using cloud data`);
+        setData(cloudData);
+      } else if (data && data.data?.transactions?.length > 0) {
+        // Cloud is empty but local has data, migrate to cloud
+        console.log(`[Storage] Migrating local data to cloud provider`);
+        const success = await newProvider.save(data);
+        if (!success) {
+          console.error(`[Storage] Failed to migrate data to '${newProviderId}'`);
+          return false;
+        }
+      }
+    } else {
+      // Switching to local provider, save current data
+      if (data) {
+        await newProvider.save(data);
       }
     }
 

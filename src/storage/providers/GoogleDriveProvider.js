@@ -106,6 +106,18 @@ class GoogleDriveProvider extends StorageProvider {
 
     await this._loadScript(GAPI_SCRIPT_URL);
     
+    // Wait for gapi to be available
+    await new Promise((resolve) => {
+      const checkGapi = () => {
+        if (window.gapi && window.gapi.load) {
+          resolve();
+        } else {
+          setTimeout(checkGapi, 50);
+        }
+      };
+      checkGapi();
+    });
+    
     await new Promise((resolve, reject) => {
       window.gapi.load('client', {
         callback: resolve,
@@ -133,6 +145,18 @@ class GoogleDriveProvider extends StorageProvider {
     }
 
     await this._loadScript(GIS_SCRIPT_URL);
+
+    // Wait for google.accounts to be available
+    await new Promise((resolve) => {
+      const checkGis = () => {
+        if (window.google && window.google.accounts && window.google.accounts.oauth2) {
+          resolve();
+        } else {
+          setTimeout(checkGis, 50);
+        }
+      };
+      checkGis();
+    });
 
     this._tokenClient = window.google.accounts.oauth2.initTokenClient({
       client_id: clientId,
@@ -284,11 +308,25 @@ class GoogleDriveProvider extends StorageProvider {
   async isAuthenticated() {
     // Check if we have a valid access token
     if (!this._accessToken) {
-      // Try to restore from session
-      const storedToken = sessionStorage.getItem('google_access_token');
-      if (storedToken) {
-        this._accessToken = storedToken;
-        return true;
+      // Try to restore from localStorage
+      const storedToken = localStorage.getItem('google_access_token');
+      const tokenTime = localStorage.getItem('google_token_time');
+      
+      if (storedToken && tokenTime) {
+        // Check if token is less than 55 minutes old (Google tokens expire after 60 min)
+        const tokenAge = Date.now() - parseInt(tokenTime, 10);
+        const maxAge = 55 * 60 * 1000; // 55 minutes in ms
+        
+        if (tokenAge < maxAge) {
+          this._accessToken = storedToken;
+          console.log('[GoogleDrive] Restored token from storage, age:', Math.round(tokenAge / 60000), 'min');
+          return true;
+        } else {
+          // Token expired, clear it
+          console.log('[GoogleDrive] Stored token expired');
+          localStorage.removeItem('google_access_token');
+          localStorage.removeItem('google_token_time');
+        }
       }
       return false;
     }
@@ -315,8 +353,9 @@ class GoogleDriveProvider extends StorageProvider {
 
           this._accessToken = response.access_token;
           
-          // Store token in session
-          sessionStorage.setItem('google_access_token', this._accessToken);
+          // Store token in localStorage (persists across sessions)
+          localStorage.setItem('google_access_token', this._accessToken);
+          localStorage.setItem('google_token_time', Date.now().toString());
 
           // Get user info
           try {
@@ -362,7 +401,8 @@ class GoogleDriveProvider extends StorageProvider {
     this._accessToken = null;
     this._fileId = null;
     this._user = null;
-    sessionStorage.removeItem('google_access_token');
+    localStorage.removeItem('google_access_token');
+    localStorage.removeItem('google_token_time');
     this._updateSyncStatus('idle');
     console.log('[GoogleDrive] Signed out');
   }

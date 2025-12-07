@@ -161,6 +161,28 @@ export default function StorageSettings() {
     }
   };
 
+  // Reconnect to current cloud provider (re-authenticate)
+  const handleReconnect = async () => {
+    if (!provider?.authenticate) return;
+    
+    setIsSwitching(true);
+    try {
+      const success = await provider.authenticate();
+      if (success) {
+        console.log('Reconnected successfully');
+        // Reload data after reconnecting
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Failed to reconnect:', error);
+    } finally {
+      setIsSwitching(false);
+    }
+  };
+
+  // Check if cloud provider needs reconnection
+  const needsReconnect = providerId === 'google-drive' && !user && syncStatus.status === 'error';
+
   const handleImport = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -264,6 +286,18 @@ export default function StorageSettings() {
                 <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
                   <p className="text-sm text-red-400">{syncStatus.error}</p>
                 </div>
+              )}
+
+              {/* Reconnect Button for Cloud Providers */}
+              {needsReconnect && (
+                <button
+                  onClick={handleReconnect}
+                  disabled={isSwitching}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isSwitching ? 'animate-spin' : ''}`} />
+                  {isSwitching ? 'Connecting...' : 'Reconnect to Google Drive'}
+                </button>
               )}
 
               {/* Provider Selection */}
