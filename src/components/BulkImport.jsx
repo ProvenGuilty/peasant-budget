@@ -107,38 +107,78 @@ function parseVerticalFormat(lines) {
 }
 
 /**
- * Parse user's bill tracking format:
+ * Parse CSV with proper handling of quoted fields containing commas
+ */
+function parseCSVLine(line) {
+  const result = []
+  let current = ''
+  let inQuotes = false
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i]
+    
+    if (char === '"') {
+      inQuotes = !inQuotes
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim())
+      current = ''
+    } else {
+      current += char
+    }
+  }
+  result.push(current.trim())
+  
+  return result
+}
+
+/**
+ * Parse user's bill tracking format (CSV):
  * Institution | Due Date | Account | Minimum | Balance Due | Last used | U | P | SQs | Interest | URL
+ * Columns: 0=Institution, 1=Due Date, 2=Account(skip), 3=Minimum(payment), rest=skip
  */
 function parseBillsFormat(parts, index) {
-  // Column indices for bills format
   const institution = parts[0]?.trim()
-  const dueDate = parts[1]?.trim()
-  const minimum = parts[3]?.trim() // Column 4 (0-indexed: 3)
+  const dueDay = parts[1]?.trim()
+  const minimum = parts[3]?.trim() // Column 4 (0-indexed: 3) - the payment amount
   
-  if (!institution || institution.toLowerCase() === 'institution') {
-    return null // Skip header row
+  // Skip header row, empty rows, or summary rows
+  if (!institution || 
+      institution.toLowerCase() === 'institution' || 
+      institution.toLowerCase().includes('total') ||
+      institution === '') {
+    return null
   }
   
-  const amount = parseAmount(minimum)
+  // Parse amount - handle negative values (credits/payments already made)
+  let amount = parseAmount(minimum)
   if (isNaN(amount)) {
     return { error: `Line ${index + 1}: Invalid payment "${minimum}"` }
   }
   
-  // Allow $0 entries - useful for tracking accounts/subscriptions with no current balance
+  // Negative amounts mean already paid/credit - convert to positive expense
+  const alreadyPaid = amount < 0
+  amount = Math.abs(amount)
   
-  const date = dueDate ? parseDate(dueDate) : new Date().toISOString().split('T')[0]
+  // Build date using due day in current month (local timezone)
+  const now = new Date()
+  const day = parseInt(dueDay, 10) || 1
+  const year = now.getFullYear()
+  const month = now.getMonth() + 1 // 0-indexed to 1-indexed
+  const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  
+  console.log(`[BulkImport] ${institution}: day=${dueDay} -> ${dateStr}, amount=${amount}`)
+  
   const category = matchCategory(institution)
   
   return {
     transaction: {
       id: `bulk-${Date.now()}-${index}`,
-      date,
-      description: institution,
+      date: dateStr,
+      description: institution + (alreadyPaid ? ' (paid)' : ''),
       amount,
       type: 'expense',
       category,
-      isRecurring: true // Bills are typically recurring
+      isRecurring: true
     }
   }
 }
@@ -213,10 +253,17 @@ function parseClipboardData(text, forcedFormat = 'auto') {
   lines.forEach((line, index) => {
     if (!line.trim()) return
 
-    // Try tab-separated first (Google Sheets default), then comma
-    let parts = line.split('\t')
-    if (parts.length < 2) {
-      parts = line.split(',').map(p => p.trim())
+    let parts
+    
+    // For bills format, use proper CSV parsing (handles quoted fields with commas)
+    if (format === 'bills') {
+      parts = parseCSVLine(line)
+    } else {
+      // Try tab-separated first (Google Sheets default), then comma
+      parts = line.split('\t')
+      if (parts.length < 2) {
+        parts = line.split(',').map(p => p.trim())
+      }
     }
 
     if (parts.length < 2) {
@@ -369,6 +416,21 @@ export default function BulkImport({ onImport, onClose }) {
     parseWithFormat(pastedText, format)
   }
 
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const text = event.target?.result
+      if (typeof text === 'string') {
+        setPastedText(text)
+        parseWithFormat(text, selectedFormat)
+      }
+    }
+    reader.readAsText(file)
+  }
+
   const handleImport = () => {
     if (preview && preview.length > 0) {
       onImport(preview)
@@ -422,6 +484,27 @@ export default function BulkImport({ onImport, onClose }) {
                 Expected: <span className="text-green-400">Date | Description | Amount | Category</span>
               </p>
             )}
+          </div>
+
+          {/* File Upload */}
+          <div className="mb-4">
+            <label className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-700 hover:bg-gray-600 border border-gray-600 border-dashed rounded-lg cursor-pointer transition-colors">
+              <Upload className="w-5 h-5 text-gray-400" />
+              <span className="text-gray-300">Choose CSV file...</span>
+              <input
+                type="file"
+                accept=".csv,.txt"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+            </label>
+          </div>
+
+          {/* Or Divider */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex-1 border-t border-gray-700"></div>
+            <span className="text-gray-500 text-sm">or paste below</span>
+            <div className="flex-1 border-t border-gray-700"></div>
           </div>
 
           {/* Paste Area */}

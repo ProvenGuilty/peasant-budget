@@ -234,12 +234,33 @@ export function StorageContextProvider({ children }) {
   }, [data, updateTransactions]);
 
   /**
+   * Add multiple transactions at once (for bulk import)
+   */
+  const addTransactions = useCallback((transactions) => {
+    if (!data || !transactions?.length) return;
+    
+    const newTransactions = [...transactions, ...(data.data?.transactions || [])];
+    updateTransactions(newTransactions);
+  }, [data, updateTransactions]);
+
+  /**
    * Delete a transaction
    */
   const deleteTransaction = useCallback((id) => {
     if (!data) return;
     
     const newTransactions = (data.data?.transactions || []).filter(t => t.id !== id);
+    updateTransactions(newTransactions);
+  }, [data, updateTransactions]);
+
+  /**
+   * Delete multiple transactions at once
+   */
+  const deleteTransactions = useCallback((ids) => {
+    if (!data || !ids?.length) return;
+    
+    const idsSet = new Set(ids);
+    const newTransactions = (data.data?.transactions || []).filter(t => !idsSet.has(t.id));
     updateTransactions(newTransactions);
   }, [data, updateTransactions]);
 
@@ -423,7 +444,9 @@ export function StorageContextProvider({ children }) {
     
     // Actions
     addTransaction,
+    addTransactions,
     deleteTransaction,
+    deleteTransactions,
     updateTransactions,
     updateSettings,
     updatePayPeriodConfig,

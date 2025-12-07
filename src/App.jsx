@@ -20,7 +20,9 @@ function App() {
     isLoading,
     error,
     addTransaction,
+    addTransactions,
     deleteTransaction,
+    deleteTransactions,
     updatePayPeriodConfig,
     provider
   } = useStorage()
@@ -92,9 +94,9 @@ function App() {
   }
 
   // Handle bulk import
-  const handleBulkImport = (transactions) => {
-    transactions.forEach(t => addTransaction(t))
-    console.log(`Bulk imported ${transactions.length} transactions`)
+  const handleBulkImport = (importedTransactions) => {
+    addTransactions(importedTransactions)
+    console.log(`Bulk imported ${importedTransactions.length} transactions`)
   }
 
   // Filter transactions by selected pay period
@@ -275,6 +277,7 @@ function App() {
             <TransactionList 
               transactions={filteredTransactions} 
               onDelete={handleDeleteTransaction}
+              onDeleteMultiple={deleteTransactions}
             />
           </div>
         </div>

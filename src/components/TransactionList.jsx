@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { 
   ShoppingCart, 
   Home, 
@@ -11,7 +12,10 @@ import {
   DollarSign, 
   HelpCircle,
   Trash2,
-  Calendar
+  Calendar,
+  CheckSquare,
+  Square,
+  Trash
 } from 'lucide-react'
 
 // Category icon mapping
@@ -44,7 +48,10 @@ const CATEGORY_COLORS = {
   'Other': 'text-gray-400'
 }
 
-export default function TransactionList({ transactions, onDelete }) {
+export default function TransactionList({ transactions, onDelete, onDeleteMultiple }) {
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [selectMode, setSelectMode] = useState(false)
+
   if (!transactions || transactions.length === 0) {
     return (
       <div className="bg-gray-800 rounded-lg p-8 shadow-xl text-center">
@@ -53,6 +60,38 @@ export default function TransactionList({ transactions, onDelete }) {
         <p className="text-gray-500">Add your first transaction to get started!</p>
       </div>
     )
+  }
+
+  const toggleSelect = (id) => {
+    const newSelected = new Set(selectedIds)
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
+    } else {
+      newSelected.add(id)
+    }
+    setSelectedIds(newSelected)
+  }
+
+  const selectAll = () => {
+    if (selectedIds.size === transactions.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(transactions.map(t => t.id)))
+    }
+  }
+
+  const deleteSelected = () => {
+    if (selectedIds.size === 0) return
+    if (!confirm(`Delete ${selectedIds.size} transaction(s)?`)) return
+    
+    if (onDeleteMultiple) {
+      onDeleteMultiple(Array.from(selectedIds))
+    } else {
+      // Fallback to deleting one by one
+      selectedIds.forEach(id => onDelete(id))
+    }
+    setSelectedIds(new Set())
+    setSelectMode(false)
   }
 
   const getCategoryIcon = (category) => {
@@ -83,10 +122,50 @@ export default function TransactionList({ transactions, onDelete }) {
     <div className="bg-gray-800 rounded-lg shadow-xl overflow-hidden">
       {/* Header */}
       <div className="px-6 py-4 border-b border-gray-700">
-        <h2 className="text-2xl font-bold text-white">Recent Transactions</h2>
-        <p className="text-sm text-gray-400 mt-1">
-          {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-white">Recent Transactions</h2>
+            <p className="text-sm text-gray-400 mt-1">
+              {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
+              {selectedIds.size > 0 && ` (${selectedIds.size} selected)`}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {selectMode ? (
+              <>
+                <button
+                  onClick={selectAll}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded transition-colors"
+                >
+                  {selectedIds.size === transactions.length ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                  {selectedIds.size === transactions.length ? 'Deselect All' : 'Select All'}
+                </button>
+                <button
+                  onClick={deleteSelected}
+                  disabled={selectedIds.size === 0}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-colors disabled:opacity-50"
+                >
+                  <Trash className="w-4 h-4" />
+                  Delete ({selectedIds.size})
+                </button>
+                <button
+                  onClick={() => { setSelectMode(false); setSelectedIds(new Set()) }}
+                  className="px-3 py-1.5 text-sm text-gray-400 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setSelectMode(true)}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
+              >
+                <CheckSquare className="w-4 h-4" />
+                Select
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Transaction List */}
@@ -96,15 +175,28 @@ export default function TransactionList({ transactions, onDelete }) {
           const iconColor = getCategoryColor(transaction.category)
           const isIncome = transaction.type === 'income'
 
+          const isSelected = selectedIds.has(transaction.id)
+
           return (
             <div
               key={transaction.id}
-              className="px-6 py-4 hover:bg-gray-700/50 transition-colors group"
+              className={`px-6 py-4 hover:bg-gray-700/50 transition-colors group ${isSelected ? 'bg-blue-500/10' : ''}`}
+              onClick={selectMode ? () => toggleSelect(transaction.id) : undefined}
+              style={selectMode ? { cursor: 'pointer' } : undefined}
             >
               {/* Mobile Layout (< md) */}
               <div className="md:hidden">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-start gap-3 flex-1">
+                    {selectMode && (
+                      <div className="flex items-center">
+                        {isSelected ? (
+                          <CheckSquare className="w-5 h-5 text-blue-400" />
+                        ) : (
+                          <Square className="w-5 h-5 text-gray-500" />
+                        )}
+                      </div>
+                    )}
                     <div className={`p-2 rounded-lg bg-gray-700 ${iconColor}`}>
                       <Icon className="w-5 h-5" />
                     </div>
@@ -140,8 +232,17 @@ export default function TransactionList({ transactions, onDelete }) {
 
               {/* Desktop Layout (>= md) */}
               <div className="hidden md:flex items-center justify-between">
-                {/* Left: Icon + Description */}
+                {/* Left: Checkbox + Icon + Description */}
                 <div className="flex items-center gap-4 flex-1 min-w-0">
+                  {selectMode && (
+                    <div className="flex items-center">
+                      {isSelected ? (
+                        <CheckSquare className="w-5 h-5 text-blue-400" />
+                      ) : (
+                        <Square className="w-5 h-5 text-gray-500" />
+                      )}
+                    </div>
+                  )}
                   <div className={`p-3 rounded-lg bg-gray-700 ${iconColor}`}>
                     <Icon className="w-5 h-5" />
                   </div>
