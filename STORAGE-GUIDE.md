@@ -310,11 +310,38 @@ export { default as myProvider } from './providers/MyProvider.js';
 - Tokens stored in session storage (cleared on browser close)
 - No passwords stored
 
-### Encryption
+### Encryption at Rest (Local Storage)
 
-- Google Drive: Encrypted at rest by Google
-- Local Storage: Not encrypted (browser security)
-- HTTPS: All API calls encrypted in transit
+**Algorithm:** AES-256-GCM (Authenticated Encryption)
+
+**Key Derivation:**
+- PBKDF2 with SHA-256
+- 100,000 iterations (OWASP recommended)
+- Random salt per device
+
+**Features:**
+- User-controlled passphrase
+- Random IV per encryption operation
+- Authentication tag prevents tampering
+- Passphrase never stored (only in memory during session)
+
+**How to Enable:**
+1. Click storage settings in header
+2. Click "Enable Encryption" under Security
+3. Enter a strong passphrase (8+ chars, mixed case, numbers)
+4. Confirm passphrase
+5. Data is encrypted immediately
+
+**Important:**
+- ⚠️ If you forget your passphrase, data CANNOT be recovered
+- ⚠️ There is no password reset
+- ⚠️ Export your data as backup before enabling
+
+### Cloud Provider Encryption
+
+- **Google Drive:** Encrypted at rest by Google
+- **OneDrive:** Encrypted at rest by Microsoft
+- **HTTPS:** All API calls encrypted in transit
 
 ---
 
