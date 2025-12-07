@@ -21,9 +21,12 @@ import {
   LogOut,
   Settings,
   X,
-  ChevronRight
+  ChevronRight,
+  Lock,
+  Shield
 } from 'lucide-react';
 import { useStorage } from '../storage';
+import EncryptionSettings from './EncryptionSettings';
 
 // Icon mapping for providers
 const providerIcons = {
@@ -120,6 +123,7 @@ function ProviderCard({ provider, isActive, onSelect, isLoading }) {
 export default function StorageSettings() {
   const {
     providerId,
+    provider,
     availableProviders,
     syncStatus,
     user,
@@ -134,7 +138,12 @@ export default function StorageSettings() {
   const [isOpen, setIsOpen] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
   const [importError, setImportError] = useState(null);
+  const [showEncryption, setShowEncryption] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Check if current provider supports encryption
+  const supportsEncryption = providerId === 'local';
+  const isEncrypted = provider?.isEncrypted?.() || false;
 
   const handleProviderSelect = async (newProviderId) => {
     if (newProviderId === providerId) return;
@@ -261,17 +270,61 @@ export default function StorageSettings() {
               <div>
                 <h3 className="text-sm font-medium text-gray-400 mb-3">Storage Provider</h3>
                 <div className="space-y-2">
-                  {availableProviders.map((provider) => (
+                  {availableProviders.map((p) => (
                     <ProviderCard
-                      key={provider.id}
-                      provider={provider}
-                      isActive={provider.id === providerId}
+                      key={p.id}
+                      provider={p}
+                      isActive={p.id === providerId}
                       onSelect={handleProviderSelect}
                       isLoading={isSwitching || isLoading}
                     />
                   ))}
                 </div>
               </div>
+
+              {/* Encryption Settings (Local Storage only) */}
+              {supportsEncryption && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-400 mb-3">Security</h3>
+                  <button
+                    onClick={() => setShowEncryption(true)}
+                    className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
+                      isEncrypted 
+                        ? 'border-green-500 bg-green-500/10' 
+                        : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${isEncrypted ? 'bg-green-500/20' : 'bg-gray-700'}`}>
+                        {isEncrypted ? (
+                          <Lock className={`w-5 h-5 text-green-400`} />
+                        ) : (
+                          <Shield className={`w-5 h-5 text-gray-400`} />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-medium text-white">
+                            {isEncrypted ? 'Encryption Enabled' : 'Enable Encryption'}
+                          </h4>
+                          {isEncrypted && (
+                            <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded">
+                              AES-256
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-400 mt-1">
+                          {isEncrypted 
+                            ? 'Your data is encrypted at rest with your passphrase'
+                            : 'Protect your financial data with AES-256-GCM encryption'
+                          }
+                        </p>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-gray-500" />
+                    </div>
+                  </button>
+                </div>
+              )}
 
               {/* Import/Export */}
               <div>
@@ -318,6 +371,17 @@ export default function StorageSettings() {
           </div>
         </div>
       )}
+
+      {/* Encryption Settings Modal */}
+      <EncryptionSettings
+        provider={provider}
+        isOpen={showEncryption}
+        onClose={() => setShowEncryption(false)}
+        onEncryptionChange={(enabled) => {
+          // Force re-render to update UI
+          setShowEncryption(false);
+        }}
+      />
     </>
   );
 }
