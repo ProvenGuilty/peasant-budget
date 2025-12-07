@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { DollarSign, Loader2, Lock, Eye, EyeOff } from 'lucide-react'
+import { DollarSign, Loader2, Lock, Eye, EyeOff, FileSpreadsheet } from 'lucide-react'
 import TransactionForm from './components/TransactionForm'
+import BulkImport from './components/BulkImport'
 import TransactionList from './components/TransactionList'
 import PayPeriodSelectorV2, { filterTransactionsByPeriod } from './components/PayPeriodSelectorV2'
 import BudgetSummary from './components/BudgetSummary'
@@ -28,6 +29,9 @@ function App() {
   const [passphrase, setPassphrase] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [unlockError, setUnlockError] = useState('')
+  
+  // Bulk import modal state
+  const [showBulkImport, setShowBulkImport] = useState(false)
 
   // Pay period type (stored in payPeriodConfig)
   const payPeriodType = payPeriodConfig?.type || 'bi-monthly'
@@ -85,6 +89,12 @@ function App() {
   const handleDeleteTransaction = (id) => {
     deleteTransaction(id)
     console.log('Transaction deleted:', id)
+  }
+
+  // Handle bulk import
+  const handleBulkImport = (transactions) => {
+    transactions.forEach(t => addTransaction(t))
+    console.log(`Bulk imported ${transactions.length} transactions`)
   }
 
   // Filter transactions by selected pay period
@@ -200,6 +210,14 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
+      {/* Bulk Import Modal */}
+      {showBulkImport && (
+        <BulkImport 
+          onImport={handleBulkImport} 
+          onClose={() => setShowBulkImport(false)} 
+        />
+      )}
+
       {/* Header */}
       <header className="max-w-6xl mx-auto mb-8">
         <div className="flex items-center justify-between">
@@ -210,7 +228,17 @@ function App() {
               <p className="text-sm text-gray-500 mt-1">Free as in freedom 🗽</p>
             </div>
           </div>
-          <StorageSettings />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowBulkImport(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors text-sm text-gray-300"
+              title="Import from Google Sheets"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span className="hidden sm:inline">Import</span>
+            </button>
+            <StorageSettings />
+          </div>
         </div>
         <p className="text-gray-400 mt-2">Everything a modern peasant needs 💰</p>
       </header>
