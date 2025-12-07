@@ -244,6 +244,18 @@ export function StorageContextProvider({ children }) {
   }, [data, updateTransactions]);
 
   /**
+   * Update a single transaction
+   */
+  const updateTransaction = useCallback((updatedTransaction) => {
+    if (!data || !updatedTransaction?.id) return;
+    
+    const newTransactions = (data.data?.transactions || []).map(t => 
+      t.id === updatedTransaction.id ? updatedTransaction : t
+    );
+    updateTransactions(newTransactions);
+  }, [data, updateTransactions]);
+
+  /**
    * Delete a transaction
    */
   const deleteTransaction = useCallback((id) => {
@@ -445,6 +457,7 @@ export function StorageContextProvider({ children }) {
     // Actions
     addTransaction,
     addTransactions,
+    updateTransaction,
     deleteTransaction,
     deleteTransactions,
     updateTransactions,

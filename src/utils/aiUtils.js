@@ -389,7 +389,7 @@ Expenses: $${expenses}
 Remaining: $${remaining}
 Top spending: ${topCategories.map(([cat, amt]) => `${cat}: $${amt}`).join(', ')}
 Transaction count: ${transactions.length}
-Subscriptions detected: ${transactions.filter(t => isLikelySubscription(t.description)).length}`
+Subscriptions detected: ${transactions.filter(t => t.category === 'Subscriptions').length}`
           }
         ],
         temperature: 0.7,

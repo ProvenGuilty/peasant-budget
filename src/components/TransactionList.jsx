@@ -21,8 +21,9 @@ import {
   CreditCard,
   Landmark
 } from 'lucide-react'
-import { CATEGORY_COLORS } from '../utils/categories'
+import { CATEGORIES, CATEGORY_COLORS } from '../utils/categories'
 import { parseLocalDate } from '../utils/dateUtils'
+import { learnCategory } from '../utils/categoryMemory'
 
 // Category icon mapping (icons need to be imported directly)
 const CATEGORY_ICONS = {
@@ -45,7 +46,7 @@ const CATEGORY_ICONS = {
   'Other': HelpCircle
 }
 
-export default function TransactionList({ transactions, onDelete, onDeleteMultiple }) {
+export default function TransactionList({ transactions, onDelete, onDeleteMultiple, onUpdate }) {
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [selectMode, setSelectMode] = useState(false)
 
@@ -105,6 +106,15 @@ export default function TransactionList({ transactions, onDelete, onDeleteMultip
 
   const getCategoryColor = (category) => {
     return CATEGORY_COLORS[category] || 'text-gray-400'
+  }
+
+  const handleCategoryChange = (transaction, newCategory) => {
+    if (onUpdate && newCategory !== transaction.category) {
+      // Learn the new category for future imports
+      learnCategory(transaction.description, newCategory)
+      // Update the transaction
+      onUpdate({ ...transaction, category: newCategory })
+    }
   }
 
   const formatDate = (dateString) => {
@@ -208,7 +218,16 @@ export default function TransactionList({ transactions, onDelete, onDeleteMultip
                       <p className="font-semibold text-white truncate">
                         {transaction.description}
                       </p>
-                      <p className="text-sm text-gray-400">{transaction.category}</p>
+                      <select
+                        value={transaction.category}
+                        onChange={(e) => handleCategoryChange(transaction, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-sm text-gray-400 bg-transparent border-none cursor-pointer hover:text-white focus:outline-none focus:ring-1 focus:ring-green-500 rounded"
+                      >
+                        {CATEGORIES.map(cat => (
+                          <option key={cat} value={cat} className="bg-gray-800">{cat}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                   <button
@@ -254,7 +273,16 @@ export default function TransactionList({ transactions, onDelete, onDeleteMultip
                     <p className="font-semibold text-white truncate">
                       {transaction.description}
                     </p>
-                    <p className="text-sm text-gray-400">{transaction.category}</p>
+                    <select
+                      value={transaction.category}
+                      onChange={(e) => handleCategoryChange(transaction, e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-sm text-gray-400 bg-transparent border-none cursor-pointer hover:text-white focus:outline-none focus:ring-1 focus:ring-green-500 rounded"
+                    >
+                      {CATEGORIES.map(cat => (
+                        <option key={cat} value={cat} className="bg-gray-800">{cat}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 

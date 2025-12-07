@@ -21,6 +21,7 @@ function App() {
     error,
     addTransaction,
     addTransactions,
+    updateTransaction,
     deleteTransaction,
     deleteTransactions,
     updatePayPeriodConfig,
@@ -279,6 +280,7 @@ function App() {
               transactions={filteredTransactions} 
               onDelete={handleDeleteTransaction}
               onDeleteMultiple={deleteTransactions}
+              onUpdate={updateTransaction}
             />
           </div>
         </div>
