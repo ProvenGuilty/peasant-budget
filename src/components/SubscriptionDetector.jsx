@@ -7,9 +7,12 @@ export default function SubscriptionDetector({ transactions }) {
   const [isLoading, setIsLoading] = useState(false)
   const [lastAnalyzed, setLastAnalyzed] = useState(null)
 
+  // Clear and re-analyze when transactions change
   useEffect(() => {
+    // Create a simple hash of transaction IDs to detect actual changes
+    const txHash = transactions.map(t => t.id).sort().join(',')
     analyzeSubscriptions()
-  }, [transactions.length]) // Re-analyze when transaction count changes
+  }, [transactions.length, transactions.map(t => t.id).join(',')]) // Re-analyze when transactions change
 
   const analyzeSubscriptions = async () => {
     if (transactions.length === 0) {

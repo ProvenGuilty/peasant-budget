@@ -23,7 +23,8 @@ import {
   X,
   ChevronRight,
   Lock,
-  Shield
+  Shield,
+  Trash2
 } from 'lucide-react';
 import { useStorage } from '../storage';
 import EncryptionSettings from './EncryptionSettings';
@@ -407,6 +408,25 @@ export default function StorageSettings() {
                 )}
                 <p className="text-xs text-gray-500 mt-2">
                   Export your data as JSON to backup or transfer to another device/provider.
+                </p>
+              </div>
+
+              {/* Clear All Data */}
+              <div className="pt-4 border-t border-gray-700">
+                <button
+                  onClick={() => {
+                    if (confirm('⚠️ This will permanently delete ALL your data. Are you sure?')) {
+                      localStorage.clear();
+                      window.location.reload();
+                    }
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20 rounded-lg transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Clear All Data
+                </button>
+                <p className="text-xs text-gray-500 mt-2 text-center">
+                  Permanently delete all transactions and settings.
                 </p>
               </div>
             </div>
