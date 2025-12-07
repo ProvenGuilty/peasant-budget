@@ -192,9 +192,14 @@ Respond ONLY with valid JSON array format:
     }
 
     const data = await response.json()
-    const content = data.choices[0]?.message?.content?.trim()
+    let content = data.choices[0]?.message?.content?.trim()
     
     try {
+      // Strip markdown code blocks if present (```json ... ```)
+      if (content.startsWith('```')) {
+        content = content.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
+      }
+      
       const subscriptions = JSON.parse(content)
       return Array.isArray(subscriptions) ? subscriptions : []
     } catch (parseError) {
