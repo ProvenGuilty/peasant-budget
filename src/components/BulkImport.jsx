@@ -14,6 +14,7 @@
 
 import { useState } from 'react'
 import { ClipboardPaste, X, Upload, AlertCircle, Check, FileSpreadsheet } from 'lucide-react'
+import { formatLocalDate, createDateForDay } from '../utils/dateUtils'
 
 const CATEGORIES = [
   'Groceries',
@@ -160,11 +161,8 @@ function parseBillsFormat(parts, index) {
   amount = Math.abs(amount)
   
   // Build date using due day in current month (local timezone)
-  const now = new Date()
   const day = parseInt(dueDay, 10) || 1
-  const year = now.getFullYear()
-  const month = now.getMonth() + 1 // 0-indexed to 1-indexed
-  const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  const dateStr = formatLocalDate(createDateForDay(day))
   
   console.log(`[BulkImport] ${institution}: day=${dueDay} -> ${dateStr}, amount=${amount}`)
   

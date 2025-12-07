@@ -36,7 +36,7 @@ function App() {
   const [showBulkImport, setShowBulkImport] = useState(false)
 
   // Pay period type (stored in payPeriodConfig)
-  const payPeriodType = payPeriodConfig?.type || 'bi-monthly'
+  const payPeriodType = payPeriodConfig?.type || 'monthly'
   
   const setPayPeriodType = (type) => {
     updatePayPeriodConfig({ type })

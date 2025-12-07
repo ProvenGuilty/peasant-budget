@@ -6,6 +6,7 @@ import {
   getAvailablePeriods,
   getDaysUntilPayday 
 } from '../utils/payPeriodUtils'
+import { parseLocalDate, isDateInRange } from '../utils/dateUtils'
 
 const PAY_PERIOD_TYPES = [
   { id: 'bi-monthly', label: 'Bi-Monthly', desc: '15th & End of Month' },
@@ -201,17 +202,7 @@ export default function PayPeriodSelectorV2({
 export function filterTransactionsByPeriod(transactions, period) {
   if (!period) return transactions
   
-  // Normalize dates to compare only year/month/day (ignore time)
-  const normalizeDate = (date) => {
-    const d = new Date(date)
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate())
-  }
-  
-  const periodStart = normalizeDate(period.start)
-  const periodEnd = normalizeDate(period.end)
-  
-  return transactions.filter(transaction => {
-    const transactionDate = normalizeDate(transaction.date)
-    return transactionDate >= periodStart && transactionDate <= periodEnd
-  })
+  return transactions.filter(transaction => 
+    isDateInRange(transaction.date, period.start, period.end)
+  )
 }
